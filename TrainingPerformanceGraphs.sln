@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35222.181
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TrainingPerformanceGraphs", "TrainingPerformanceGraphs.vcxproj", "{B15EC1AE-14CE-4635-9845-1BADA1714781}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B15EC1AE-14CE-4635-9845-1BADA1714781}.Release|x64.ActiveCfg = Release|x64
+		{B15EC1AE-14CE-4635-9845-1BADA1714781}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {84F6CF56-62CE-4191-BCAC-8A2D51637752}
+	EndGlobalSection
+EndGlobal
