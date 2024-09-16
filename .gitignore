@@ -358,8 +358,8 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
-plugins/*
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/plugins/TrainingPerformanceGraphs.dll
+
+plugins/*

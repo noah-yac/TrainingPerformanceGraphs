@@ -1,18 +1,65 @@
 #include "pch.h"
 #include "TrainingPerformanceGraphs.h"
 
+using namespace std;
 
-BAKKESMOD_PLUGIN(TrainingPerformanceGraphs, "Track your training pack performance with visual graphs.", plugin_version, PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(TrainingPerformanceGraphs, "TrainingPerformanceGraphs", plugin_version, PLUGINTYPE_CUSTOM_TRAINING)
 
-std::shared_ptr<CVarManagerWrapper> _globalCvarManager;
+shared_ptr<CVarManagerWrapper> _globalCvarManager;
 
 void TrainingPerformanceGraphs::onLoad()
 {
 	_globalCvarManager = cvarManager;
-	//LOG("Plugin loaded!");
-	// !! Enable debug logging by setting DEBUG_LOG = true in logging.h !!
-	//DEBUGLOG("TrainingPerformanceGraphs debug mode enabled");
+	//cvarManager->registerCvar("sf_enabled", "1", "Enabled TrainingPerformanceGraphs..", true, false, 0, false, 0, true).bindTo(enabled);
 
+	LOG("Plugin loaded!");
+	// !! Enable debug logging by setting DEBUG_LOG = true in logging.h !!
+	DEBUGLOG("TrainingPerformanceGraphs debug mode enabled");
+
+	if (*enabled)
+	{
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.LoadRound", [this](ActorWrapper cw, void* params, string eventName) {
+			if (!*enabled || !IsTrainingPackSelected((TrainingEditorWrapper)cw.memory_address))
+				return;
+
+			LOG("Plugin enabled and pack detected!!");
+			});
+
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed", [this](ActorWrapper cw, void* params, string eventName) {
+			if (loaded)
+				onUnload();
+			});
+	}
+}
+
+
+bool TrainingPerformanceGraphs::IsTrainingPackSelected(TrainingEditorWrapper tw)
+{
+	if (!tw.IsNull())
+	{
+		GameEditorSaveDataWrapper data = tw.GetTrainingData();
+		if (!data.IsNull())
+		{
+			TrainingEditorSaveDataWrapper td = data.GetTrainingData();
+			if (!td.IsNull())
+			{
+				if (!td.GetCode().IsNull())
+				{
+					auto code = td.GetCode().ToString();
+					if (code == "7028-5E10-88EF-E83E")
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+/*
+* ignoring all of this for now
+* 
 	// LOG and DEBUGLOG use fmt format strings https://fmt.dev/latest/index.html
 	//DEBUGLOG("1 = {}, 2 = {}, pi = {}, false != {}", "one", 2, 3.14, true);
 
@@ -46,4 +93,4 @@ void TrainingPerformanceGraphs::onLoad()
 	//});
 	// You could also use std::bind here
 	//gameWrapper->HookEvent("Function TAGame.Ball_TA.Explode", std::bind(&TrainingPerformanceGraphs::YourPluginMethod, this);
-}
+*/
