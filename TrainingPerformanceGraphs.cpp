@@ -9,12 +9,11 @@ shared_ptr<CVarManagerWrapper> _globalCvarManager;
 
 void TrainingPerformanceGraphs::onLoad()
 {
+	//initialize
 	_globalCvarManager = cvarManager;
-	//cvarManager->registerCvar("sf_enabled", "1", "Enabled TrainingPerformanceGraphs..", true, false, 0, false, 0, true).bindTo(enabled);
+	cvarManager->registerCvar("tpg_enabled", "1", "Enabled TrainingPerformanceGraphs", true, false, 0, false, 0, true).bindTo(enabled);
 
 	LOG("Plugin loaded!");
-	// !! Enable debug logging by setting DEBUG_LOG = true in logging.h !!
-	DEBUGLOG("TrainingPerformanceGraphs debug mode enabled");
 
 	if (*enabled)
 	{
@@ -31,7 +30,6 @@ void TrainingPerformanceGraphs::onLoad()
 			});
 	}
 }
-
 
 bool TrainingPerformanceGraphs::IsTrainingPackSelected(TrainingEditorWrapper tw)
 {

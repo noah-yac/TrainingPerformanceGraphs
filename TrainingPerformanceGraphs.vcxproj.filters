@@ -81,6 +81,9 @@
     <ClCompile Include="GuiBase.cpp">
       <Filter>Plugin\src</Filter>
     </ClCompile>
+    <ClCompile Include="TrainingPerformanceGraphsGUI.cpp">
+      <Filter>Plugin\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_rangeslider.h">
@@ -142,7 +145,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="UpgradeTest.rc">
+    <ResourceCompile Include="TrainingPerformanceGraphs.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>
