@@ -11,7 +11,17 @@ string TrainingPerformanceGraphs::GetPluginName() {
 
 // This will show up f2 -> plugins -> TrainingPerformanceGraphs
 void TrainingPerformanceGraphs::RenderSettings() {
-	ImGui::TextUnformatted("Hello world!");
-	//further GUI implemented here
-}
+    ImGui::TextUnformatted("Training Performance Graphs");
 
+    //checkbox that will enable demo
+    static bool show_demo_window = true;
+    ImGui::Checkbox("Show ImPlot Demo", &show_demo_window);
+
+    //when true display demo
+    if (show_demo_window) {
+        ImPlot::ShowDemoWindow(&show_demo_window);
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Other stuff to be implemented");
+}
