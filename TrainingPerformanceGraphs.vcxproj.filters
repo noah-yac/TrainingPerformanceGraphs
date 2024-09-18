@@ -84,6 +84,12 @@
     <ClCompile Include="TrainingPerformanceGraphsGUI.cpp">
       <Filter>Plugin\src</Filter>
     </ClCompile>
+    <ClCompile Include="IMGUI\implot.cpp">
+      <Filter>imgui\implementation</Filter>
+    </ClCompile>
+    <ClCompile Include="IMGUI\implot_demo.cpp">
+      <Filter>imgui\implementation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_rangeslider.h">
@@ -142,6 +148,9 @@
     </ClInclude>
     <ClInclude Include="GuiBase.h">
       <Filter>Plugin\header</Filter>
+    </ClInclude>
+    <ClInclude Include="IMGUI\implot.h">
+      <Filter>imgui\headers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
