@@ -34,6 +34,15 @@
     <Filter Include="Plugin\src">
       <UniqueIdentifier>{33ae5c6a-718c-410e-bdb8-9c032f65c710}</UniqueIdentifier>
     </Filter>
+    <Filter Include="implot">
+      <UniqueIdentifier>{f46220b6-6978-4d93-92d4-aad60b137db9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="implot\header">
+      <UniqueIdentifier>{b2ad81dd-2750-4bba-a757-21738952e1c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="implot\implementation">
+      <UniqueIdentifier>{388cb146-c7a1-4ba8-a012-49935347cd4e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="imgui\imgui.cpp">
@@ -84,11 +93,11 @@
     <ClCompile Include="TrainingPerformanceGraphsGUI.cpp">
       <Filter>Plugin\src</Filter>
     </ClCompile>
-    <ClCompile Include="IMGUI\implot.cpp">
-      <Filter>imgui\implementation</Filter>
+    <ClCompile Include="external\implot-0.2\implot.cpp">
+      <Filter>implot\implementation</Filter>
     </ClCompile>
-    <ClCompile Include="IMGUI\implot_demo.cpp">
-      <Filter>imgui\implementation</Filter>
+    <ClCompile Include="external\implot-0.2\implot_demo.cpp">
+      <Filter>implot\implementation</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -149,8 +158,8 @@
     <ClInclude Include="GuiBase.h">
       <Filter>Plugin\header</Filter>
     </ClInclude>
-    <ClInclude Include="IMGUI\implot.h">
-      <Filter>imgui\headers</Filter>
+    <ClInclude Include="external\implot-0.2\implot.h">
+      <Filter>implot\header</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

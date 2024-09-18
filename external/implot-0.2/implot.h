@@ -22,8 +22,10 @@
 
 // ImPlot v0.2 WIP
 
+#include "pch.h"
+
 #pragma once
-#include "imgui.h"
+
 
 //-----------------------------------------------------------------------------
 // Basic types and flags

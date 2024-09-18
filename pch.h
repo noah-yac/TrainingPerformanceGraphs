@@ -11,7 +11,10 @@
 
 #include "IMGUI/imgui.h"
 #include "IMGUI/imgui_stdlib.h"
+#include "IMGUI/imgui_internal.h"
 #include "IMGUI/imgui_searchablecombo.h"
 #include "IMGUI/imgui_rangeslider.h"
+
+#include "external/implot-0.2/implot.h"
 
 #include "logging.h"

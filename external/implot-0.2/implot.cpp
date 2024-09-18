@@ -1,4 +1,3 @@
-#include "pch.h"
 // MIT License
 
 // Copyright (c) 2020 Evan Pezent
@@ -56,8 +55,10 @@ You can read releases logs https://github.com/epezent/implot/releases for more d
 #define IMGUI_DEFINE_MATH_OPERATORS
 #endif
 
+#include "pch.h"
+
 #include "implot.h"
-#include "imgui_internal.h"
+
 
 #ifdef _MSC_VER
 #define sprintf sprintf_s

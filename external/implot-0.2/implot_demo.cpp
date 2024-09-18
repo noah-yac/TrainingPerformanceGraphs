@@ -1,4 +1,3 @@
-#include "pch.h"
 // MIT License
 
 // Copyright (c) 2020 Evan Pezent
@@ -23,6 +22,7 @@
 
 // ImPlot v0.2 WIP
 
+#include "pch.h"
 
 #include "implot.h"
 #include <math.h>
@@ -719,8 +719,8 @@ void ShowDemoWindow(bool* p_open) {
     if (ImGui::CollapsingHeader("Offset Data")) {
         float xs[50], ys[50];
         for (int i = 0; i < 50; ++i) {
-            xs[i] = 0.5f + 0.4f * cosf(i / 50.f * 6.28f);
-            ys[i] = 0.5f + 0.4f * sinf(i/50.f * 6.28f);
+            xs[i] = 0.5 + 0.4 * cos(i/50.f * 6.28);
+            ys[i] = 0.5 + 0.4 * sin(i/50.f * 6.28);
         }
         static int offset = 0;
         ImGui::SliderInt("Offset", &offset, -100, 100);

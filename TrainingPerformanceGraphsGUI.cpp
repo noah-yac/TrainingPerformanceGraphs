@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "TrainingPerformanceGraphs.h"
-#include "IMGUI/implot.h"
 
 using namespace std;
 

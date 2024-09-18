@@ -91,6 +91,8 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="external\implot-0.2\implot.cpp" />
+    <ClCompile Include="external\implot-0.2\implot_demo.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imguivariouscontrols.cpp" />
     <ClCompile Include="imgui\imgui_additions.cpp" />
@@ -103,8 +105,6 @@
     <ClCompile Include="IMGUI\imgui_stdlib.cpp" />
     <ClCompile Include="imgui\imgui_timeline.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
-    <ClCompile Include="IMGUI\implot.cpp" />
-    <ClCompile Include="IMGUI\implot_demo.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -114,6 +114,7 @@
     <ClCompile Include="GuiBase.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="external\implot-0.2\implot.h" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />
     <ClInclude Include="imgui\imguivariouscontrols.h" />
@@ -125,7 +126,6 @@
     <ClInclude Include="imgui\imgui_searchablecombo.h" />
     <ClInclude Include="IMGUI\imgui_stdlib.h" />
     <ClInclude Include="imgui\imgui_timeline.h" />
-    <ClInclude Include="IMGUI\implot.h" />
     <ClInclude Include="imgui\imstb_rectpack.h" />
     <ClInclude Include="imgui\imstb_textedit.h" />
     <ClInclude Include="imgui\imstb_truetype.h" />
