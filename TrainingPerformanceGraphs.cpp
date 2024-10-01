@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "TrainingPerformanceGraphs.h"
+#include <fstream>
+#include <ctime>
 
 using namespace std;
 
@@ -13,21 +15,30 @@ void TrainingPerformanceGraphs::onLoad()
 	_globalCvarManager = cvarManager;
 	cvarManager->registerCvar("tpg_enabled", "1", "Enabled TrainingPerformanceGraphs", true, false, 0, false, 0, true).bindTo(enabled);
 
-	LOG("Plugin loaded!");
+	LOG("TPG Plugin loaded!");
 
 	if (*enabled)
 	{
+		//ensure correct training pack
 		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.LoadRound", [this](ActorWrapper cw, void* params, string eventName) {
 			if (!*enabled || !IsTrainingPackSelected((TrainingEditorWrapper)cw.memory_address))
 				return;
+			LOG("Plugin enabled and pack detected!!\nTraining session started!!");
 
-			LOG("Plugin enabled and pack detected!!");
-			});
+			sessionStartTime = GetCurrentDateTime(); //get start date and time
+
+			//TODO: add more values
+		});
 
 		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed", [this](ActorWrapper cw, void* params, string eventName) {
-			if (loaded)
-				onUnload();
-			});
+			LOG("Training session ended!!");
+			
+			sessionEndTime = GetCurrentDateTime(); //get end date and time 
+
+			SaveSessionDataToCSV(); //save all data to csv
+			
+			if (loaded) onUnload(); //unload
+		});
 	}
 }
 
@@ -55,40 +66,65 @@ bool TrainingPerformanceGraphs::IsTrainingPackSelected(TrainingEditorWrapper tw)
 	return false;
 }
 
-/*
-* ignoring all of this for now
-* 
-	// LOG and DEBUGLOG use fmt format strings https://fmt.dev/latest/index.html
-	//DEBUGLOG("1 = {}, 2 = {}, pi = {}, false != {}", "one", 2, 3.14, true);
+void TrainingPerformanceGraphs::SaveSessionDataToCSV()
+{
+	//gets current folder and (new or not) path 
+	string dataFolder = gameWrapper->GetDataFolder().string();
 
-	//cvarManager->registerNotifier("my_aweseome_notifier", [&](std::vector<std::string> args) {
-	//	LOG("Hello notifier!");
-	//}, "", 0);
+	string filePath = dataFolder + "/training_sessions.csv"; //on windows this is C:\Users\<USERNAME>\AppData\Roaming\bakkesmod\bakkesmod\data
 
-	//auto cvar = cvarManager->registerCvar("template_cvar", "hello-cvar", "just a example of a cvar");
-	//auto cvar2 = cvarManager->registerCvar("template_cvar2", "0", "just a example of a cvar with more settings", true, true, -10, true, 10 );
+	ofstream myfile(filePath, ios::app); //will create if doesnt exist
 
-	//cvar.addOnValueChanged([this](std::string cvarName, CVarWrapper newCvar) {
-	//	LOG("the cvar with name: {} changed", cvarName);
-	//	LOG("the new value is: {}", newCvar.getStringValue());
-	//});
+	if (myfile.is_open())
+	{
+		//if file is new 
+		if (myfile.tellp() == 0)
+		{
+			myfile << "Start Time,End Time,Placeholder1,Placeholder2\n"; //creates row 0 (header)
+		}
+		
+		if (!sessionStartTime.empty() || !sessionEndTime.empty())
+		{
+			//write training session to csv
+			myfile << sessionStartTime << ","
+				<< sessionEndTime << ","
+				<< "placeholder1" << ","
+				<< "placeholder2" << "\n";
+			LOG("Training session data saved to CSV file");
+		}
+		else 
+		{
+			LOG("Session start or end time is empty");
+		}
+		
+		myfile.close();
+	}
+	else
+	{
+		LOG("Unable to open file");
+	}
+}
 
-	//cvar2.addOnValueChanged(std::bind(&TrainingPerformanceGraphs::YourPluginMethod, this, _1, _2));
+string TrainingPerformanceGraphs::GetCurrentDateTime()
+{
+	//gets current time
+	time_t now = time(nullptr);
 
-	// enabled decleared in the header
-	//enabled = std::make_shared<bool>(false);
-	//cvarManager->registerCvar("TEMPLATE_Enabled", "0", "Enable the TEMPLATE plugin", true, true, 0, true, 1).bindTo(enabled);
+	//convert to localtime
+	tm* timeInfo = localtime(&now);
+	if (timeInfo == nullptr)
+	{
+		LOG("Failed to obtain local time");
+		return "";
+	}
 
-	//cvarManager->registerNotifier("NOTIFIER", [this](std::vector<std::string> params){FUNCTION();}, "DESCRIPTION", PERMISSION_ALL);
-	//cvarManager->registerCvar("CVAR", "DEFAULTVALUE", "DESCRIPTION", true, true, MINVAL, true, MAXVAL);//.bindTo(CVARVARIABLE);
-	//gameWrapper->HookEvent("FUNCTIONNAME", std::bind(&TEMPLATE::FUNCTION, this));
-	//gameWrapper->HookEventWithCallerPost<ActorWrapper>("FUNCTIONNAME", std::bind(&TrainingPerformanceGraphs::FUNCTION, this, _1, _2, _3));
-	//gameWrapper->RegisterDrawable(bind(&TEMPLATE::Render, this, std::placeholders::_1));
+	//format the time as a string example (1/13/2000 2:30:00)
+	char buffer[20];
+	if (strftime(buffer, sizeof(buffer), "%m/%d/%Y %H:%M:%S", timeInfo) == 0)
+	{
+		LOG("strftime failed");
+		return "";
+	}
 
-
-	//gameWrapper->HookEvent("Function TAGame.Ball_TA.Explode", [this](std::string eventName) {
-	//	LOG("Your hook got called and the ball went POOF");
-	//});
-	// You could also use std::bind here
-	//gameWrapper->HookEvent("Function TAGame.Ball_TA.Explode", std::bind(&TrainingPerformanceGraphs::YourPluginMethod, this);
-*/
+	return string(buffer);
+}

@@ -10,6 +10,7 @@ constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_M
 
 using namespace std;
 
+
 class TrainingPerformanceGraphs: public BakkesMod::Plugin::BakkesModPlugin, public SettingsWindowBase
 {
 	//Boilerplate
@@ -31,4 +32,13 @@ private:
 
 	//Current hardcoded training pack is selected
 	bool IsTrainingPackSelected(TrainingEditorWrapper tw);
+
+	//store session date and time
+	string sessionStartTime;
+	string sessionEndTime;
+	//get and formatting and date and time 
+	string GetCurrentDateTime();
+
+	//session data
+	void SaveSessionDataToCSV();
 };
