@@ -26,18 +26,32 @@ public:
 private:
 	//Plugin enabled
 	shared_ptr<bool> enabled = make_shared<bool>(true);
-	
 	//Plugin loaded
 	bool loaded = false;
 
-	//Current hardcoded training pack is selected
-	bool IsTrainingPackSelected(TrainingEditorWrapper tw);
+	//
+	
+	//Returns Training Pack Code string
+	string GetTrainingPackCode(TrainingEditorWrapper tw);
+	string tpCode;
 
-	//store session date and time
-	string sessionStartTime;
-	string sessionEndTime;
-	//get and formatting and date and time 
+	//, 
+	
+	//Returns DateTime
 	string GetCurrentDateTime();
+	string sessionStartTime;
+
+	//,
+
+	string sessionEndTime;
+
+	//, 
+	
+	int shotAttempts = 0;
+
+	//,
+	
+	int totalPackShots = -1;
 
 	//session data
 	void SaveSessionDataToCSV();

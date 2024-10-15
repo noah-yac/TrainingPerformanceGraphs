@@ -19,51 +19,66 @@ void TrainingPerformanceGraphs::onLoad()
 
 	if (*enabled)
 	{
-		//ensure correct training pack
-		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.LoadRound", [this](ActorWrapper cw, void* params, string eventName) {
-			if (!*enabled || !IsTrainingPackSelected((TrainingEditorWrapper)cw.memory_address))
-				return;
-			LOG("Plugin enabled and pack detected!!\nTraining session started!!");
+		//on begin
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function GameEvent_TrainingEditor_TA.WaitingToPlayTest.OnTrainingModeLoaded", [this](ActorWrapper cw, void* params, string eventName) {
+			if (!*enabled) return;
 
-			sessionStartTime = GetCurrentDateTime(); //get start date and time
+			//save TrainingPackCode
+			tpCode = GetTrainingPackCode((TrainingEditorWrapper)cw.memory_address);
+			if (tpCode.empty()) return;
 
-			//TODO: add more values
+			//save total shots in a training pack
+			auto serverWrapper = gameWrapper->GetGameEventAsServer();
+			if (serverWrapper.IsNull()) return;
+			auto trainingWrapper = TrainingEditorWrapper(serverWrapper.memory_address);
+			totalPackShots = trainingWrapper.GetTotalRounds();
+			LOG("totalPackShots: " + to_string(totalPackShots));
+
+			//save start date and time
+			sessionStartTime = GetCurrentDateTime();
+
+			LOG("Plugin enabled and pack: " + tpCode + " detected!!\nTraining session started!!");
 		});
 
-		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed", [this](ActorWrapper cw, void* params, string eventName) {
-			LOG("Training session ended!!");
-			
-			sessionEndTime = GetCurrentDateTime(); //get end date and time 
+		//track shot attempts
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.TrainingEditorMetrics_TA.TrainingShotAttempt", [this](ActorWrapper cw, void* params, std::string eventName) {
+			shotAttempts++;
+			LOG("Shot attempted! Total attempts: " + to_string(shotAttempts));
+		});
 
-			SaveSessionDataToCSV(); //save all data to csv
-			
-			if (loaded) onUnload(); //unload
+		//todo: successful shots/total shots
+		//todo: per shot, not per pack metrics
+		//todo: assert that resets equal failed attempts (differentiate in data?)
+		//todo: track boost usage
+		//todo: average goal speed
+
+		//on end
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed", [this](ActorWrapper cw, void* params, string eventName) {
+			//save end date time 
+			sessionEndTime = GetCurrentDateTime();
+
+			//save all data to csv
+			SaveSessionDataToCSV(); 
+
+			//cleanup
+			if (loaded) onUnload();
+			shotAttempts = 0;
+			totalPackShots = -1;
+
+			LOG("Training session ended!!");
 		});
 	}
 }
 
-bool TrainingPerformanceGraphs::IsTrainingPackSelected(TrainingEditorWrapper tw)
+string TrainingPerformanceGraphs::GetTrainingPackCode(TrainingEditorWrapper tw)
 {
-	if (!tw.IsNull())
+	TrainingEditorSaveDataWrapper td = tw.GetTrainingData().GetTrainingData();
+	if (!td.GetCode().IsNull())
 	{
-		GameEditorSaveDataWrapper data = tw.GetTrainingData();
-		if (!data.IsNull())
-		{
-			TrainingEditorSaveDataWrapper td = data.GetTrainingData();
-			if (!td.IsNull())
-			{
-				if (!td.GetCode().IsNull())
-				{
-					auto code = td.GetCode().ToString();
-					if (code == "7028-5E10-88EF-E83E")
-					{
-						return true;
-					}
-				}
-			}
-		}
+		string code = td.GetCode().ToString();
+		return code;
 	}
-	return false;
+	return "";
 }
 
 void TrainingPerformanceGraphs::SaveSessionDataToCSV()
@@ -77,22 +92,24 @@ void TrainingPerformanceGraphs::SaveSessionDataToCSV()
 
 	if (myfile.is_open())
 	{
-		//if file is new 
-		if (myfile.tellp() == 0)
-		{
-			myfile << "Start Time,End Time,Placeholder1,Placeholder2\n"; //creates row 0 (header)
+		//move to eof, if eof is 0, we haven't written anything and we need to save our header
+		myfile.seekp(0, ios::end);
+		if (myfile.tellp() == 0) {
+			myfile << "Training Pack Code,Start Time,End Time,Shot Attempts,Total Pack Shots\n"; //creates row 0 (header)
 		}
 		
-		if (!sessionStartTime.empty() || !sessionEndTime.empty())
+		if (!sessionStartTime.empty() && !sessionEndTime.empty())
 		{
 			//write training session to csv
-			myfile << sessionStartTime << ","
+			myfile
+				<< tpCode << ","
+				<< sessionStartTime << ","
 				<< sessionEndTime << ","
-				<< "placeholder1" << ","
-				<< "placeholder2" << "\n";
+				<< shotAttempts << ","
+				<< totalPackShots << "\n";
 			LOG("Training session data saved to CSV file");
 		}
-		else 
+		else
 		{
 			LOG("Session start or end time is empty");
 		}
