@@ -1,7 +1,5 @@
 #include "pch.h"
 #include "TrainingPerformanceGraphs.h"
-#include <fstream>
-#include <ctime>
 
 using namespace std;
 
@@ -23,62 +21,65 @@ void TrainingPerformanceGraphs::onLoad()
 		gameWrapper->HookEventWithCaller<ActorWrapper>("Function GameEvent_TrainingEditor_TA.WaitingToPlayTest.OnTrainingModeLoaded", [this](ActorWrapper cw, void* params, string eventName) {
 			if (!*enabled) return;
 
-			//save TrainingPackCode
-			tpCode = GetTrainingPackCode((TrainingEditorWrapper)cw.memory_address);
-			if (tpCode.empty()) return;
+			//get and store name, code, total pack shots
+			GetTrainingPackInfo((TrainingEditorWrapper)cw.memory_address);
+			if (info.name.empty() || info.code.empty() || info.totalPackShots < 0) return;
 
-			//save total shots in a training pack
-			auto serverWrapper = gameWrapper->GetGameEventAsServer();
-			if (serverWrapper.IsNull()) return;
-			auto trainingWrapper = TrainingEditorWrapper(serverWrapper.memory_address);
-			totalPackShots = trainingWrapper.GetTotalRounds();
-			LOG("totalPackShots: " + to_string(totalPackShots));
-
-			//save start date and time
+			//get session start time
 			sessionStartTime = GetCurrentDateTime();
 
-			LOG("Plugin enabled and pack: " + tpCode + " detected!!\nTraining session started!!");
+			LOG("Training Session Started Successfully!"); 
+			LOG("Training Pack Name : " + info.name + " Training Pack Code : " + info.code + " Total Pack Shots : " + to_string(info.totalPackShots));
 		});
 
-		//track shot attempts
-		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.TrainingEditorMetrics_TA.TrainingShotAttempt", [this](ActorWrapper cw, void* params, std::string eventName) {
-			shotAttempts++;
-			LOG("Shot attempted! Total attempts: " + to_string(shotAttempts));
+		//on round (shot) change, update the active round index
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.EventRoundChanged", [this](ActorWrapper cw, void* params, string eventName) {
+			roundNumber = TrainingEditorWrapper(cw.memory_address).GetActiveRoundNumber();
+			LOG("Round: " + to_string(roundNumber + 1) + " / " + to_string(info.totalPackShots));
 		});
 
-		//todo: successful shots/total shots
+		//on start and end on shot attempt
+		gameWrapper->HookEvent("Function TAGame.TrainingEditorMetrics_TA.TrainingShotAttempt", [this](string) { HandleAttempt(true); });
+		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.EndRound", [this](string) { HandleAttempt(false); }); 
+
+		//on begin and end state of boost usage, accurately records boost usage
+		gameWrapper->HookEvent("Function CarComponent_Boost_TA.Active.BeginState", [this](string) { HandleBoost(true); });
+		gameWrapper->HookEvent("Function CarComponent_Boost_TA.Active.EndState", [this](string) { HandleBoost(false); });
+
+		//on success increment shotsMade
+		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.GoalScored", [this](string) { shotsMade++; LOG("Shots made: " + to_string(shotsMade)); });
+
 		//todo: per shot, not per pack metrics
-		//todo: assert that resets equal failed attempts (differentiate in data?)
-		//todo: track boost usage
+		// round implemented, continue
 		//todo: average goal speed
 
 		//on end
 		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed", [this](ActorWrapper cw, void* params, string eventName) {
-			//save end date time 
-			sessionEndTime = GetCurrentDateTime();
-
-			//save all data to csv
-			SaveSessionDataToCSV(); 
+			
+			sessionEndTime = GetCurrentDateTime(); //save end date time 
+			
+			SaveSessionDataToCSV(); //write to CSV
 
 			//cleanup
 			if (loaded) onUnload();
 			shotAttempts = 0;
-			totalPackShots = -1;
+			shotsMade = 0;
+			info.totalPackShots = 0;
+			info.name.clear();
+			info.code.clear();
 
-			LOG("Training session ended!!");
+			LOG("Training session ended!");
 		});
 	}
 }
 
-string TrainingPerformanceGraphs::GetTrainingPackCode(TrainingEditorWrapper tw)
-{
+TrainingPackInfo TrainingPerformanceGraphs::GetTrainingPackInfo(TrainingEditorWrapper tw) {
 	TrainingEditorSaveDataWrapper td = tw.GetTrainingData().GetTrainingData();
-	if (!td.GetCode().IsNull())
-	{
-		string code = td.GetCode().ToString();
-		return code;
-	}
-	return "";
+	info.code = td.GetCode().ToString();
+	info.name = td.GetTM_Name().ToString();
+	info.totalPackShots = tw.GetTotalRounds();
+
+	return info;
 }
 
 void TrainingPerformanceGraphs::SaveSessionDataToCSV()
@@ -95,18 +96,21 @@ void TrainingPerformanceGraphs::SaveSessionDataToCSV()
 		//move to eof, if eof is 0, we haven't written anything and we need to save our header
 		myfile.seekp(0, ios::end);
 		if (myfile.tellp() == 0) {
-			myfile << "Training Pack Code,Start Time,End Time,Shot Attempts,Total Pack Shots\n"; //creates row 0 (header)
+			myfile << "Start Time,End Time,Training Pack Code,Training Pack Name,Total Pack Shots,Shots Made,Shot Attempts\n"; //creates row 0 (header)
 		}
 		
 		if (!sessionStartTime.empty() && !sessionEndTime.empty())
 		{
 			//write training session to csv
 			myfile
-				<< tpCode << ","
 				<< sessionStartTime << ","
 				<< sessionEndTime << ","
-				<< shotAttempts << ","
-				<< totalPackShots << "\n";
+				<< info.code << ","
+				<< info.name << ","
+				<< to_string(info.totalPackShots) << ","
+				<< shotsMade << ","
+				<< shotAttempts << "\n";
+				
 			LOG("Training session data saved to CSV file");
 		}
 		else
@@ -144,4 +148,39 @@ string TrainingPerformanceGraphs::GetCurrentDateTime()
 	}
 
 	return string(buffer);
+}
+
+void TrainingPerformanceGraphs::HandleAttempt(bool attempting) {
+	if (attempting) {
+		shotAttempts++; 
+		totalBoostUsed = 0.0f;
+		isAttempting = true;
+
+		LOG("Attempt " + to_string(shotAttempts) + " started, boost tracking enabled.");
+	}
+	else {
+		isAttempting = false;
+		isBoosting = false;
+		LOG("Total boost used in attempt " + to_string(totalBoostUsed));
+	}
+}
+
+void TrainingPerformanceGraphs::HandleBoost(bool start) {
+	if (isAttempting) {
+		if (start && !isBoosting) {
+			isBoosting = true;
+			boostStartTime = chrono::high_resolution_clock::now();
+		}
+		else if (!start && isBoosting) {
+			auto boostEndTime = chrono::high_resolution_clock::now();
+			auto duration = chrono::duration_cast<chrono::milliseconds>(boostEndTime - boostStartTime).count();
+
+			float boostConsumptionRate = 33.3f;
+			float boostUsed = (duration / 1000.0f) * boostConsumptionRate;
+			totalBoostUsed += boostUsed;
+
+			isBoosting = false;
+			//LOG("Boost used: " + to_string(boostUsed) + ", Total boost used: " + to_string(totalBoostUsed));
+		}
+	}
 }
