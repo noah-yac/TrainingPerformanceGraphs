@@ -103,6 +103,7 @@ void TrainingPerformanceGraphs::onLoad()
 			info.totalPackShots = 0;
 			info.name.clear();
 			info.code.clear();
+			roundIndex = -1;
 
 			LOG("Training session ended!");
 		});
