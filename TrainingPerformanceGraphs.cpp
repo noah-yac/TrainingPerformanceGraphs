@@ -26,6 +26,9 @@ void TrainingPerformanceGraphs::onLoad()
 			GetTrainingPackInfo((TrainingEditorWrapper)cw.memory_address);
 			if (info.name.empty() || info.code.empty() || info.totalPackShots < 0) return;
 
+			//refit our global vector shotData 
+			shotData.resize(info.totalPackShots);
+
 			//get session start time
 			sessionStartTime = GetCurrentDateTime();
 
@@ -36,15 +39,30 @@ void TrainingPerformanceGraphs::onLoad()
 		//on round (shot) change, update the active round index
 		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.EventRoundChanged",
 			[this](ActorWrapper cw, void* params, string eventName) {
-			roundNumber = TrainingEditorWrapper(cw.memory_address).GetActiveRoundNumber();
-			LOG("Round: " + to_string(roundNumber + 1) + " / " + to_string(info.totalPackShots));
+			roundIndex = TrainingEditorWrapper(cw.memory_address).GetActiveRoundNumber();
+			LOG("Round: " + to_string(roundIndex + 1) + " / " + to_string(info.totalPackShots));
 		});
 
 		//on start and end on shot attempt
 		gameWrapper->HookEvent("Function TAGame.TrainingEditorMetrics_TA.TrainingShotAttempt",
 			[this](string) { HandleAttempt(true); });
 		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.EndRound",
-			[this](string) { HandleAttempt(false); }); 
+			[this](string) { 
+				if (roundIndex < 0 || roundIndex >= shotData.size() || shotData[roundIndex].attempts.empty()) {
+					LOG("Error: roundIndex or attempt data out of bounds for GoalScored");
+					return;
+				}
+
+				//finalize boost used for this attempt
+				//this MUST be done here for safety, doing at GoalScored will not work
+				HandleBoost(false);
+				shotData[roundIndex].attempts.back().boostUsed = totalBoostUsed; 
+
+				LOG("Data set for shot " + to_string(roundIndex + 1)
+					+ ", Boost used = " + to_string(totalBoostUsed));
+
+				HandleAttempt(false); 
+			});
 
 		//on begin and end state of boost usage, accurately records boost usage
 		gameWrapper->HookEvent("Function CarComponent_Boost_TA.Active.BeginState",
@@ -53,27 +71,35 @@ void TrainingPerformanceGraphs::onLoad()
 			[this](string) { HandleBoost(false); });
 
 		gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal",
-			[this](string) { GetSpeed(isAttempting); });
+			[this](string) { GetSpeed(isAttempting);});
 
 		//on success increment shotsMade, and get goal speed
 		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.GoalScored",
-			[this](string) { shotsMade++; LOG("Shots made: " + to_string(shotsMade)); });
-		
-		//todo: per shot, not per pack metrics
-		// round implemented, continue
+			[this](string){
+				if (roundIndex < 0 || roundIndex >= shotData.size() || shotData[roundIndex].attempts.empty()) {
+					LOG("Error: roundIndex or attempt data out of bounds for GoalScored");
+					return;
+				}
+				
+				shotData[roundIndex].attempts.back().scored = true;
+				shotData[roundIndex].attempts.back().goalSpeed = speed;
+
+				LOG("Data set for shot " + to_string(roundIndex + 1)
+					+ ": Scored = " + to_string(true)
+					+ ", Speed = " + to_string(speed));
+			});
 		
 		//on end
-		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed",
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.EndTraining",
 			[this](ActorWrapper cw, void* params, string eventName) {
 			
 			sessionEndTime = GetCurrentDateTime(); //save end date time 
 			
-			SaveSessionDataToCSV(); //write to CSV
+			SaveSessionDataToJSON(); //write to JSON
 
 			//cleanup
 			if (loaded) onUnload();
-			shotAttempts = 0;
-			shotsMade = 0;
+			shotData.clear();
 			info.totalPackShots = 0;
 			info.name.clear();
 			info.code.clear();
@@ -90,52 +116,6 @@ TrainingPackInfo TrainingPerformanceGraphs::GetTrainingPackInfo(TrainingEditorWr
 	info.totalPackShots = tw.GetTotalRounds();
 
 	return info;
-}
-
-void TrainingPerformanceGraphs::SaveSessionDataToCSV()
-{
-	//gets current folder and (new or not) path 
-	string dataFolder = gameWrapper->GetDataFolder().string();
-
-	string filePath = dataFolder + "/training_sessions.csv"; //on windows this is C:\Users\<USERNAME>\AppData\Roaming\bakkesmod\bakkesmod\data
-
-	ofstream myfile(filePath, ios::app); //will create if doesnt exist
-
-	if (myfile.is_open())
-	{
-		//move to eof, if eof is 0, we haven't written anything and we need to save our header
-		myfile.seekp(0, ios::end);
-		if (myfile.tellp() == 0) {
-			myfile << "Start Time,End Time,Training Pack Code,Training Pack Name,Total Pack Shots,Boost Used,Goal Speed,Shots Made,Shot Attempts\n"; //creates row 0 (header)
-		}
-		
-		if (!sessionStartTime.empty() && !sessionEndTime.empty())
-		{
-			//write training session to csv
-			myfile
-				<< sessionStartTime << ","
-				<< sessionEndTime << ","
-				<< info.code << ","
-				<< info.name << ","
-				<< to_string(info.totalPackShots) << ","
-				<< totalBoostUsed << ","
-				<< speed << ","
-				<< shotsMade << ","
-				<< shotAttempts << "\n";
-				
-			LOG("Training session data saved to CSV file");
-		}
-		else
-		{
-			LOG("Session start or end time is empty");
-		}
-		
-		myfile.close();
-	}
-	else
-	{
-		LOG("Unable to open file");
-	}
 }
 
 string TrainingPerformanceGraphs::GetCurrentDateTime()
@@ -164,11 +144,12 @@ string TrainingPerformanceGraphs::GetCurrentDateTime()
 
 void TrainingPerformanceGraphs::HandleAttempt(bool attempting) {
 	if (attempting) {
-		shotAttempts++; 
+		shotData[roundIndex].attempts.emplace_back();  //add default AttemptData
+
 		totalBoostUsed = 0.0f;
 		isAttempting = true;
 
-		LOG("Attempt " + to_string(shotAttempts) + " started, boost tracking enabled.");
+		LOG("Attempt " + to_string(shotData[roundIndex].attempts.size()) + " started for shot " + to_string(roundIndex + 1));
 	}
 	else {
 		isAttempting = false;
@@ -180,10 +161,12 @@ void TrainingPerformanceGraphs::HandleAttempt(bool attempting) {
 void TrainingPerformanceGraphs::HandleBoost(bool start) {
 	if (isAttempting) {
 		if (start && !isBoosting) {
+			//LOG("TRACKING");
 			isBoosting = true;
 			boostStartTime = chrono::high_resolution_clock::now();
 		}
 		else if (!start && isBoosting) {
+
 			auto boostEndTime = chrono::high_resolution_clock::now();
 			auto duration = chrono::duration_cast<chrono::milliseconds>(boostEndTime - boostStartTime).count();
 
@@ -192,6 +175,7 @@ void TrainingPerformanceGraphs::HandleBoost(bool start) {
 			totalBoostUsed += boostUsed;
 
 			isBoosting = false;
+			//LOG("NOT TRACKING");
 			//LOG("Boost used: " + to_string(boostUsed) + ", Total boost used: " + to_string(totalBoostUsed));
 		}
 	}
@@ -208,5 +192,91 @@ void TrainingPerformanceGraphs::GetSpeed(bool attempting)
 
 		speed = ball.GetVelocity().magnitude() * 0.036f; //convert unreal unit per second to kph (0.036)
 		LOG("Goal Speed: " + to_string(speed));
+	}
+}
+
+void TrainingPerformanceGraphs::SaveSessionDataToJSON()
+{
+	//set up path
+	string dataFolder = gameWrapper->GetDataFolder().string();
+	string filePath = dataFolder + "/training_sessions.json"; //on windows this is C:\Users\<USERNAME>\AppData\Roaming\bakkesmod\bakkesmod\data
+
+	//initialize
+	ostringstream jsonStream;
+	bool isFirstSession = true;
+	string existingData;
+
+	ifstream infile(filePath);
+	if (infile.good()) {
+		stringstream buffer;
+		buffer << infile.rdbuf();
+		existingData = buffer.str();
+		infile.close();
+
+		//if existing data has the closing brackets, and remove them for appending
+		if (!existingData.empty() && existingData.find("]") != string::npos) {
+			existingData.erase(existingData.find_last_of("]"), string::npos); // Remove the closing brackets
+			isFirstSession = false;
+			jsonStream << existingData << ",\n";
+		}
+	}
+
+	//if new file write beginning
+	if (isFirstSession) {
+		jsonStream << "{\n    \"sessions\": [\n";
+	}
+
+	//append new session data
+	jsonStream << "        {\n";
+	jsonStream << "            \"startTime\": \"" << sessionStartTime << "\",\n";
+	jsonStream << "            \"endTime\": \"" << sessionEndTime << "\",\n";
+	jsonStream << "            \"trainingPack\": {\n";
+	jsonStream << "                \"code\": \"" << info.code << "\",\n";
+	jsonStream << "                \"name\": \"" << info.name << "\",\n";
+	jsonStream << "                \"totalPackShots\": " << info.totalPackShots << "\n";
+	jsonStream << "            },\n";
+	jsonStream << "            \"shotData\": {\n";
+
+	//fun
+	for (size_t shotIndex = 0; shotIndex < shotData.size(); ++shotIndex) {
+		jsonStream << "                \"shot " << shotIndex << "\": {\n";
+		jsonStream << "                    \"attempts\": {\n";
+
+		const auto& attempts = shotData[shotIndex].attempts;
+		for (size_t attemptIndex = 0; attemptIndex < attempts.size(); ++attemptIndex) {
+			const AttemptData& attempt = attempts[attemptIndex];
+			jsonStream << "                        \"attempt " << attemptIndex << "\": { ";
+			jsonStream << "\"scored\": " << (attempt.scored ? "true" : "false") << ", ";
+			jsonStream << "\"goalSpeed\": " << (attempt.scored ? attempt.goalSpeed : 0.0) << ", ";
+			jsonStream << "\"boostUsed\": " << attempt.boostUsed;
+			jsonStream << " }";
+			if (attemptIndex < attempts.size() - 1) {
+				jsonStream << ",";
+			}
+			jsonStream << "\n";
+		}
+
+		jsonStream << "                    }\n";
+		jsonStream << "                }";
+		if (shotIndex < shotData.size() - 1) {
+			jsonStream << ",";
+		}
+		jsonStream << "\n";
+	}
+
+	//closings
+	jsonStream << "            }\n";
+	jsonStream << "        }";
+	jsonStream << "\n    ]\n}\n";
+
+	//write final json to file
+	ofstream myfile(filePath, ios::out | ios::trunc); //overwrite the file
+	if (myfile.is_open()) {
+		myfile << jsonStream.str();
+		myfile.close();
+		LOG("Training session data appended to JSON file");
+	}
+	else {
+		LOG("Unable to open file");
 	}
 }
