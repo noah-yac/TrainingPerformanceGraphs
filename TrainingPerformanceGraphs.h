@@ -55,6 +55,10 @@ private:
 	chrono::high_resolution_clock::time_point boostStartTime;
 	void HandleBoost(bool start);
 
+	//track goal speed
+	float speed = 0.0f;
+	void GetSpeed(bool attempting);
+
 	//session data
 	void SaveSessionDataToCSV();
 };

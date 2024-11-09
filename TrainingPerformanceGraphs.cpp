@@ -18,7 +18,8 @@ void TrainingPerformanceGraphs::onLoad()
 	if (*enabled)
 	{
 		//on begin
-		gameWrapper->HookEventWithCaller<ActorWrapper>("Function GameEvent_TrainingEditor_TA.WaitingToPlayTest.OnTrainingModeLoaded", [this](ActorWrapper cw, void* params, string eventName) {
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function GameEvent_TrainingEditor_TA.WaitingToPlayTest.OnTrainingModeLoaded", 
+			[this](ActorWrapper cw, void* params, string eventName) {
 			if (!*enabled) return;
 
 			//get and store name, code, total pack shots
@@ -33,28 +34,37 @@ void TrainingPerformanceGraphs::onLoad()
 		});
 
 		//on round (shot) change, update the active round index
-		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.EventRoundChanged", [this](ActorWrapper cw, void* params, string eventName) {
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.EventRoundChanged",
+			[this](ActorWrapper cw, void* params, string eventName) {
 			roundNumber = TrainingEditorWrapper(cw.memory_address).GetActiveRoundNumber();
 			LOG("Round: " + to_string(roundNumber + 1) + " / " + to_string(info.totalPackShots));
 		});
 
 		//on start and end on shot attempt
-		gameWrapper->HookEvent("Function TAGame.TrainingEditorMetrics_TA.TrainingShotAttempt", [this](string) { HandleAttempt(true); });
-		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.EndRound", [this](string) { HandleAttempt(false); }); 
+		gameWrapper->HookEvent("Function TAGame.TrainingEditorMetrics_TA.TrainingShotAttempt",
+			[this](string) { HandleAttempt(true); });
+		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.EndRound",
+			[this](string) { HandleAttempt(false); }); 
 
 		//on begin and end state of boost usage, accurately records boost usage
-		gameWrapper->HookEvent("Function CarComponent_Boost_TA.Active.BeginState", [this](string) { HandleBoost(true); });
-		gameWrapper->HookEvent("Function CarComponent_Boost_TA.Active.EndState", [this](string) { HandleBoost(false); });
+		gameWrapper->HookEvent("Function CarComponent_Boost_TA.Active.BeginState",
+			[this](string) { HandleBoost(true); });
+		gameWrapper->HookEvent("Function CarComponent_Boost_TA.Active.EndState",
+			[this](string) { HandleBoost(false); });
 
-		//on success increment shotsMade
-		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.GoalScored", [this](string) { shotsMade++; LOG("Shots made: " + to_string(shotsMade)); });
+		gameWrapper->HookEvent("Function TAGame.Ball_TA.OnHitGoal",
+			[this](string) { GetSpeed(isAttempting); });
 
+		//on success increment shotsMade, and get goal speed
+		gameWrapper->HookEvent("Function TAGame.GameMetrics_TA.GoalScored",
+			[this](string) { shotsMade++; LOG("Shots made: " + to_string(shotsMade)); });
+		
 		//todo: per shot, not per pack metrics
 		// round implemented, continue
-		//todo: average goal speed
-
+		
 		//on end
-		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed", [this](ActorWrapper cw, void* params, string eventName) {
+		gameWrapper->HookEventWithCaller<ActorWrapper>("Function TAGame.GameEvent_TrainingEditor_TA.Destroyed",
+			[this](ActorWrapper cw, void* params, string eventName) {
 			
 			sessionEndTime = GetCurrentDateTime(); //save end date time 
 			
@@ -96,7 +106,7 @@ void TrainingPerformanceGraphs::SaveSessionDataToCSV()
 		//move to eof, if eof is 0, we haven't written anything and we need to save our header
 		myfile.seekp(0, ios::end);
 		if (myfile.tellp() == 0) {
-			myfile << "Start Time,End Time,Training Pack Code,Training Pack Name,Total Pack Shots,Shots Made,Shot Attempts\n"; //creates row 0 (header)
+			myfile << "Start Time,End Time,Training Pack Code,Training Pack Name,Total Pack Shots,Boost Used,Goal Speed,Shots Made,Shot Attempts\n"; //creates row 0 (header)
 		}
 		
 		if (!sessionStartTime.empty() && !sessionEndTime.empty())
@@ -108,6 +118,8 @@ void TrainingPerformanceGraphs::SaveSessionDataToCSV()
 				<< info.code << ","
 				<< info.name << ","
 				<< to_string(info.totalPackShots) << ","
+				<< totalBoostUsed << ","
+				<< speed << ","
 				<< shotsMade << ","
 				<< shotAttempts << "\n";
 				
@@ -182,5 +194,19 @@ void TrainingPerformanceGraphs::HandleBoost(bool start) {
 			isBoosting = false;
 			//LOG("Boost used: " + to_string(boostUsed) + ", Total boost used: " + to_string(totalBoostUsed));
 		}
+	}
+}
+
+void TrainingPerformanceGraphs::GetSpeed(bool attempting)
+{
+	if (attempting) {
+		ServerWrapper server = gameWrapper->GetGameEventAsServer();
+		if (server.IsNull()) return;
+
+		BallWrapper ball = server.GetBall();
+		if (ball.IsNull()) return;
+
+		speed = ball.GetVelocity().magnitude() * 0.036f; //convert unreal unit per second to kph (0.036)
+		LOG("Goal Speed: " + to_string(speed));
 	}
 }
