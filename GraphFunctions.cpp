@@ -5,7 +5,7 @@
 #include "GraphFunctions.h"
 
 //for individual shot controls, appropriately update variables such that any graph may access the control's state
-void HandleIndividualShotControls(int totalShots, const string& selectedPack) {
+void HandleIndividualShotControls(int totalShots, const string& selectedPack, const vector<TrainingSessionData>& filteredSessions) {
     //track states
     static bool displayAllShots = false;
     static string lastSelectedPack = "";
@@ -30,6 +30,7 @@ void HandleIndividualShotControls(int totalShots, const string& selectedPack) {
     if (ImGui::Button("+")) {
         int shotNumber = -1;
         bool validInput = true;
+        bool hasData = false;
 
         try {
             shotNumber = stoi(shotNumberInput);
@@ -38,9 +39,22 @@ void HandleIndividualShotControls(int totalShots, const string& selectedPack) {
             validInput = false;
         }
 
+        //check for data
+        if (validInput && shotNumber > 0 && shotNumber <= totalShots) {
+            for (const auto& session : filteredSessions) {
+                if (shotNumber - 1 < static_cast<int>(session.shotData.size()) && !session.shotData[shotNumber - 1].empty()) {
+                    hasData = true;
+                    break;
+                }
+            }
+        }
+
         //validate shot number
         if (!validInput || shotNumber <= 0 || shotNumber > totalShots) {
             errorMessage = "Invalid value entered. (Valid values: 1-" + to_string(totalShots) + ")";
+        }
+        else if (!hasData) {
+            errorMessage = "No data available for shot " + to_string(shotNumber) + ".";
         }
         else {
             errorMessage.clear();
@@ -141,7 +155,7 @@ void RenderScoringRateGraph(const vector<TrainingSessionData>& sessions, const s
     int totalShots = !filteredSessions.empty() ? static_cast<int>(filteredSessions[0].shotData.size()) : 0;
 
     //call the shot controls function
-    HandleIndividualShotControls(totalShots, selectedPack);
+    HandleIndividualShotControls(totalShots, selectedPack, filteredSessions);
 
     //update `customShotLines` with data for the selected shots
     for (auto& [label, points] : customShotLines) {
@@ -178,9 +192,16 @@ void RenderScoringRateGraph(const vector<TrainingSessionData>& sessions, const s
     ImPlot::SetNextPlotLimits(xMin, xMax, 0, yMax, ImGuiCond_Always);
 
     if (ImPlot::BeginPlot("Scoring Rate: Average Scoring Rate From Selected Training Pack", "Training Session", "Scoring Rate (%)", ImVec2(-1, 0))) {
-        //plot session-wide scoring rates
-        ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
+        if (numSessions == 1) {
+            //draw a single white circle for one data point
+            ImPlot::PushStyleColor(ImPlotCol_MarkerFill, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
+            ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Circle); //marker
+        }
+        else {
+            //bold white line for plot session-wide scoring rates
+            ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
+        }
         ImPlot::PlotLine("All Shots", sessionIndices.data(), scoringRates.data(), numSessions);
         ImPlot::PopStyleVar();
         ImPlot::PopStyleColor();
@@ -290,9 +311,16 @@ void RenderBoostUsedGraph(const vector<TrainingSessionData>& sessions, const str
     ImPlot::SetNextPlotLimits(xMin, xMax, 0, yMax, ImGuiCond_Always);
 
     if (ImPlot::BeginPlot("Boost Used: Average Boost Used From Selected Training Pack", "Training Session", "Boost Used", ImVec2(-1, 0))) {
-        //plot session-wide boost averages
-        ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
+        if (numSessions == 1) {
+            //draw a single white circle for one data point
+            ImPlot::PushStyleColor(ImPlotCol_MarkerFill, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
+            ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Circle); //marker
+        }
+        else {
+            //bold white line for plot session-wide boost usage rates
+            ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
+        }
         ImPlot::PlotLine("All Shots", sessionIndices.data(), boostAverages.data(), numSessions);
         ImPlot::PopStyleVar();
         ImPlot::PopStyleColor();
@@ -406,9 +434,16 @@ void RenderGoalSpeedGraph(const vector<TrainingSessionData>& sessions, const str
     ImPlot::SetNextPlotLimits(xMin, xMax, 0, yMax, ImGuiCond_Always);
 
     if (ImPlot::BeginPlot("Goal Speed: Average Goal Speed From Selected Training Pack", "Training Session", "Goal Speed (km/h)", ImVec2(-1, 0))) {
-        //plot session-wide goal speed averages
-        ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
+        if (numSessions == 1) {
+            //draw a single white circle for one data point
+            ImPlot::PushStyleColor(ImPlotCol_MarkerFill, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
+            ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Circle); //marker
+        }
+        else {
+            //bold white line for plot session-wide goal speed averages
+            ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
+        }
         ImPlot::PlotLine("All Shots", sessionIndices.data(), goalSpeedAverages.data(), numSessions);
         ImPlot::PopStyleVar();
         ImPlot::PopStyleColor();
