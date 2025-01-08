@@ -10,6 +10,9 @@
 #include <chrono>
 #include <sstream>
 #include <vector>
+#include <string>
+#include <set>
+#include <cmath>
 
 constexpr auto plugin_version = stringify(VERSION_MAJOR) "." stringify(VERSION_MINOR) "." stringify(VERSION_PATCH) "." stringify(VERSION_BUILD);
 
@@ -26,12 +29,25 @@ struct TrainingPackInfo {
 struct AttemptData {
 	bool scored = false;
 	float goalSpeed = 0.0f;
-	float boostUsed = 0.0f; 
+	float boostUsed = 0.0f;
 };
 
 //each shot in a pack will have one vector of attempts
 struct ShotData {
 	vector<AttemptData> attempts;
+};
+
+//struct will hold ONE ENTIRE 'session's data
+struct TrainingSessionData {
+    string trainingPackCode;
+    string trainingPackName;
+    string startTime;
+    string endTime;
+    int totalPackShots = -1;
+    vector<vector<AttemptData>> shotData;
+
+    //cached data for scoring rate (not taking or adding this value to xml)
+    float scoringRateAverage = 0.0f;
 };
 
 class TrainingPerformanceGraphs: public BakkesMod::Plugin::BakkesModPlugin, public SettingsWindowBase
@@ -73,7 +89,7 @@ private:
 	void GetSpeed(bool attempting);
 
 	//session data
-	void SaveSessionDataToJSON();
+	void SaveSessionDataToXML();
 
 	//vector 'shotData' for each shot in a pack
 	vector<ShotData> shotData;

@@ -99,6 +99,9 @@
     <ClCompile Include="external\implot-0.2\implot_demo.cpp">
       <Filter>implot\implementation</Filter>
     </ClCompile>
+    <ClCompile Include="GraphFunctions.cpp">
+      <Filter>Plugin\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_rangeslider.h">
@@ -160,6 +163,12 @@
     </ClInclude>
     <ClInclude Include="external\implot-0.2\implot.h">
       <Filter>implot\header</Filter>
+    </ClInclude>
+    <ClInclude Include="TrainingPerformanceGraphsGUI.h">
+      <Filter>Plugin\header</Filter>
+    </ClInclude>
+    <ClInclude Include="GraphFunctions.h">
+      <Filter>Plugin\header</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,248 +1,347 @@
 #include "pch.h"
 #include "TrainingPerformanceGraphs.h"
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <string>
-#include <ctime>
-#include <set>
+#include "TrainingPerformanceGraphsGUI.h"
+#include "GraphFunctions.h"
 
-using namespace std;
+//initialization
+bool isCacheLoaded = false;
+string currentFilePath = "";
+vector<TrainingSessionData> sessionsCache;
 
-struct TrainingSessionData {
-    string trainingPackCode;
-    string startTime;
-    string endTime;
-    int shotAttempts = 0;
-    int totalPackShots = -1;
-    //TODO: continue updating here
-};
-
-vector<TrainingSessionData> ReadTrainingSessionData(const string& filePath);
-void RenderLineChart(const vector<TrainingSessionData>& sessions, const string& selectedPack);
-void GenerateTestCSV(const string& filePath);
-
-//kinda like main() for our gui
+//functions=========================================================================================================================
+//for 'Plugins' left panel list
+string TrainingPerformanceGraphs::GetPluginName() { return "TrainingPerformanceGraphs";}
+//GUI main()
 void TrainingPerformanceGraphs::RenderSettings() {
-    ImGui::TextUnformatted("Training Performance Graphs");
+    //ImGui::TextUnformatted("Training Performance Graphs");
 
-    //checkbox that will enable demo
-    static bool show_demo_window = false;
-    ImGui::Checkbox("Show ImPlot Demo", &show_demo_window);
-    if (show_demo_window) {
-        ImPlot::ShowDemoWindow(&show_demo_window);
-    }
+    //display implot demo for debugging/testing
+    //displayDemo();
 
-    ImGui::Separator();
+    //static flag to ensure the data loading function is only called once
+    static bool dataLoadedOnce = false;
 
-    //checkbox that will allow us to using randomly generated test data (by not checking we use our data by default)
-    static bool show_test_data = false;
-    bool checkbox_changed = ImGui::Checkbox("Show Test Data?", &show_test_data);
-    string dataFolder = gameWrapper->GetDataFolder().string();
-    string filePath;
-    if (show_test_data) {
-        filePath = dataFolder + "/test_data.csv";
-        if (checkbox_changed) {
-            GenerateTestCSV(filePath);
-        }
-    }
-    else {
-        filePath = dataFolder + "/training_sessions.csv";
-    }
-    vector<TrainingSessionData> sessions = ReadTrainingSessionData(filePath);
-    
-    ImGui::Separator();
-    
-    if (sessions.empty()) {
-        ImGui::Text("No data available to display.");
-        return;
+    if (!dataLoadedOnce) {
+        string dataFolder = gameWrapper->GetDataFolder().string();
+        
+        //generate test data file
+        GenerateTestXML(dataFolder + "\\test_data.xml");
+        LOG("Test data generated.");
+
+        //append user xml data then test xml data to sessionCache
+        AddSessionsToCache(dataFolder);
+        dataLoadedOnce = true;
     }
 
-    //get training pack codes
-    set<string> uniquePackCodes;
-    for (const auto& session : sessions) {
-        uniquePackCodes.insert(session.trainingPackCode);
-    }
-    vector<string> packOptions(uniquePackCodes.begin(), uniquePackCodes.end());
-    static string selectedPack = packOptions.empty() ? "" : packOptions[0];
-    
-    //drop down
-    if (ImGui::BeginCombo("Select Training Pack", selectedPack.c_str())) {
-        for (const auto& pack : packOptions) {
-            bool isSelected = (selectedPack == pack);
-            if (ImGui::Selectable(pack.c_str(), isSelected)) {
-                selectedPack = pack;
-            }
-            if (isSelected) {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-        ImGui::EndCombo();
-    }
-    
-    //graph
-    RenderLineChart(sessions, selectedPack);
-    ImGui::Separator();
+    //get list of all tpcodes user has trained, display dropdown to user
+    vector<pair<string, string>> trainingPacks = getTrainingPackNameAndCode(sessionsCache);
+    string selectedPack = displayPackSelector(trainingPacks);
+
+    //Graph 1: Scoring Rate
+    RenderScoringRateGraph(sessionsCache, selectedPack);
+
+    //Graph 2: Boost Used
+    RenderBoostUsedGraph(sessionsCache, selectedPack);
+
+    //Graph 3: Goal Speed
+    RenderGoalSpeedGraph(sessionsCache, selectedPack);
 }
 
-//for plugin settings window
-string TrainingPerformanceGraphs::GetPluginName() {
-    return "TrainingPerformanceGraphs";
-}
+//generate randomized test XML file
+void GenerateTestXML(const string& filePath) {
+    srand(static_cast<unsigned int>(time(nullptr)));
 
-//read csv file
-vector<TrainingSessionData> ReadTrainingSessionData(const string& filePath) {
-    vector<TrainingSessionData> sessions;
-    
-    ifstream file(filePath);
-
-    if (!file.is_open()) {
-        LOG("Unable to open file: " + filePath);
-        return sessions;
-    }
-
-    string line;
-    //ignore header
-    getline(file, line);
-
-    while (getline(file, line)) {
-        stringstream ss(line);
-        string item;
-        TrainingSessionData session;
-
-        //parse
-        getline(ss, session.trainingPackCode, ',');
-        getline(ss, session.startTime, ',');
-        getline(ss, session.endTime, ',');
-        getline(ss, item, ',');
-        session.shotAttempts = stoi(item);
-        getline(ss, item, ',');
-        session.totalPackShots = stoi(item);
-
-        sessions.push_back(session);
-    }
-
-    file.close();
-    return sessions;
-}
-
-//render line and dot chart
-void RenderLineChart(const vector<TrainingSessionData>& sessions, const string& selectedPack) {
-    //allows selected pack
-    vector<TrainingSessionData> filteredSessions;
-    for (const auto& session : sessions) {
-        if (session.trainingPackCode == selectedPack) {
-            filteredSessions.push_back(session);
-        }
-    }
-
-    //handles if no data
-    int num_sessions = static_cast<int>(filteredSessions.size());
-    if (num_sessions == 0) {
-        ImGui::Text("No data available for this Training Pack.");
-        return;
-    }
-
-    //prepare data
-    vector<float> shotAttempts(num_sessions);
-    vector<float> totalPackShots(num_sessions);
-    float max_value = 0.0f;
-
-    for (int i = 0; i < num_sessions; ++i) {
-        shotAttempts[i] = static_cast<float>(filteredSessions[i].shotAttempts);
-        totalPackShots[i] = static_cast<float>(filteredSessions[i].totalPackShots);
-
-        //calculate if max shots is attempts or totalpackshots 
-        max_value = max(max_value, max(shotAttempts[i], totalPackShots[i]));
-    }
-
-    //create y-axis limit max shot value + 33% padding 
-    float y_max_limit = max_value * 1.33f;
-
-    //create x-axis limit adding +1 to each sides (0-11)
-    float x_min_limit = 0.0f; // Padding to the left of the first session
-    float x_max_limit = max(11.0f, static_cast<float>(num_sessions + 1)); //TODO: expand above 10 training sessions
-
-    //set limits
-    ImPlot::SetNextPlotLimits(x_min_limit, x_max_limit, 0, y_max_limit, ImGuiCond_Always);
-
-    if (ImPlot::BeginPlot("Training Pack Performance", "Training Session", "Shots", ImVec2(-1, 0))) {
-        vector<float> x_values(num_sessions);
-        for (int i = 0; i < num_sessions; ++i) {
-            x_values[i] = static_cast<float>(i + 1); //start from 1 for space
-        }
-
-        //shot attempt is red circle
-        ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Circle);
-        ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1, 0, 0, 1)); //red
-        ImPlot::PlotLine("Attempts", x_values.data(), shotAttempts.data(), num_sessions);
-        ImPlot::PopStyleColor();
-        ImPlot::PopStyleVar();
-
-        //total pack shots is blue square
-        ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Square);
-        ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0, 0, 1, 1)); //blue
-        ImPlot::PlotLine("Total Shots", x_values.data(), totalPackShots.data(), num_sessions);
-        ImPlot::PopStyleColor();
-        ImPlot::PopStyleVar();
-
-        ImPlot::EndPlot();
-    }
-}
-
-//generate random test data
-void GenerateTestCSV(const string& filePath) {
     ofstream file(filePath);
     if (!file.is_open()) {
         LOG("Unable to create file: " + filePath);
         return;
     }
 
-    file << "trainingPackCode,startTime,endTime,shotAttempts,totalPackShots\n";
+    file << "<root>\n    <sessions>\n";
+    int totalPacks = 5; //number of to be generated packs
+    string packCodes[] = { "AAAA-BBBB-0000-1111", "AAAA-BBBB-0000-2222", "AAAA-BBBB-0000-3333", "AAAA-BBBB-0000-4444", "AAAA-BBBB-0000-5555" };
 
-    string packCodes[] = { "PACK1", "PACK2", "PACK3", "PACK4", "PACK5", "PACK6", "PACK7", "PACK8", "PACK9", "PACK10" };
-    int totalPacks = 10;
+    float scoringBase = 0.4f;       //starting scoring probability (40%)
+    float scoringGrowth = 1.02f;    //growth rate for scoring
+    float goalSpeedBase = 40.0f;    //starting goal speed
+    float goalSpeedGrowth = 1.02f;  //growth rate for goal speed
+    float boostUsageBase = 250.0f;  //starting boost used
+    float boostUsageDecay = 0.98f;  //decay rate for boost usage (improves over time)
 
-    tm date = {};
-    date.tm_year = 2024 - 1900; // Year since 1900
-    date.tm_mon = 1;            
-    date.tm_mday = 1;           
+    for (int packIndex = 0; packIndex < totalPacks; ++packIndex) {
+        int sessionsForPack = 5 + (rand() % 96);  //random between 5 and 100 sessions per pack
 
-    for (int i = 0; i < 100; ++i) {
-        // Cycle through pack codes
-        string packCode = packCodes[i % totalPacks];
+        for (int sessionIndex = 0; sessionIndex < sessionsForPack; ++sessionIndex) {
+            file << "        <session>\n"
+                << "            <startTime>01/01/2024 08:00:00</startTime>\n"
+                << "            <endTime>01/01/2024 08:30:00</endTime>\n"
+                << "            <trainingPack>\n"
+                << "                <code>" << packCodes[packIndex] << "</code>\n"
+                << "                <name>Generated Example Pack " << (packIndex + 1) << "</name>\n"
+                << "                <totalPackShots>10</totalPackShots>\n"
+                << "            </trainingPack>\n"
+                << "            <shotData>\n";
 
-        // Increment date every 10 entries
-        if (i % 10 == 0 && i != 0) {
-            date.tm_mday += 1;
+            int shots = 10; //set number of shots
+            for (int shotIndex = 0; shotIndex < shots; ++shotIndex) {
+                file << "                <shot id=\"" << shotIndex << "\">\n";
+                int attempts = 2 + (rand() % 3); //random attempts between 2 and 4 per shot
+
+                //get current exponential growth/decay
+                float currentScoringChance = min(static_cast<float>(scoringBase * pow(scoringGrowth, sessionIndex)), 0.95f); //will approach 95% accuracy
+                float currentGoalSpeed = min(static_cast<float>(goalSpeedBase * pow(goalSpeedGrowth, sessionIndex) + static_cast<float>((rand() % 50 - 25))), 140.0f); //will approach 140kph (+/-25 variance)
+                float currentBoostUsed = max(static_cast<float>(boostUsageBase * pow(boostUsageDecay, sessionIndex) + static_cast<float>((rand() % 100 - 50))), 10.0f); //will approach 10 boost used (+/-50 variance)
+
+                for (int attemptIndex = 0; attemptIndex < attempts; ++attemptIndex) {
+                    //Randomly calculate per shot exponential growth/decay with variance
+                    bool scored = (rand() % 100) < (currentScoringChance * 100);
+                    float goalSpeed = scored ? min(currentGoalSpeed + static_cast<float>(rand() % 50 - 25), 140.0f) : 0.0f;
+                    float boostUsed = max(currentBoostUsed + static_cast<float>(rand() % 100 - 50), 0.0f);
+
+                    file << "                    <attempt id=\"" << attemptIndex
+                        << "\" scored=\"" << (scored ? "true" : "false")
+                        << "\" goalSpeed=\"" << fixed << setprecision(4) << goalSpeed
+                        << "\" boostUsed=\"" << fixed << setprecision(4) << boostUsed << "\" />\n";
+                }
+                file << "                </shot>\n";
+            }
+
+            file << "            </shotData>\n"
+                << "        </session>\n";
         }
-
-        // Format start and end times
-        date.tm_hour = 8 + (i % 5) * 2;     // Sessions at different times
-        date.tm_min = (i % 2) * 30;         // 0 or 30 minutes
-        date.tm_sec = 0;
-        time_t startTime = mktime(&date);
-
-        date.tm_min += 30 + (rand() % 16);  // Session length between 30 and 45 minutes
-        time_t endTime = mktime(&date);
-
-        // Convert times to strings
-        char startStr[20];
-        char endStr[20];
-        strftime(startStr, sizeof(startStr), "%m/%d/%Y %H:%M:%S", localtime(&startTime));
-        strftime(endStr, sizeof(endStr), "%m/%d/%Y %H:%M:%S", localtime(&endTime));
-
-        // Random shot attempts and total shots
-        int shotAttempts = 45 + rand() % 30;   // Between 45 and 75
-        int totalPackShots = 15 + rand() % 16; // Between 15 and 30
-
-        // Write to CSV
-        file << packCode << ','
-            << startStr << ','
-            << endStr << ','
-            << shotAttempts << ','
-            << totalPackShots << '\n';
     }
 
+    file << "    </sessions>\n</root>\n";
+
     file.close();
+}
+//Add user and test data to session cache
+void AddSessionsToCache(string dataFolder) {
+    sessionsCache.clear();
+    isCacheLoaded = false;
+
+    //user data -> sessionsCache
+    try {
+        vector<TrainingSessionData> userSessions = ReadTrainingSessionDataFromXML(dataFolder + "\\training_sessions.xml");
+        sessionsCache.insert(sessionsCache.end(), userSessions.begin(), userSessions.end());
+        LOG("User training data loaded successfully.");
+    }
+    catch (const exception& e) { LOG("Error loading user training data: " + string(e.what())); }
+
+    //test data -> sessionsCache
+    try {
+        vector<TrainingSessionData> testSessions = ReadTrainingSessionDataFromXML(dataFolder + "\\test_data.xml");
+        sessionsCache.insert(sessionsCache.end(), testSessions.begin(), testSessions.end());
+        LOG("Test training data loaded successfully.");
+    }
+    catch (const exception& e) { LOG("Error loading test training data: " + string(e.what())); }
+
+    isCacheLoaded = true;
+    //PrintAllCachedSessions();
+
+    ImGui::Separator();
+}
+//reads training data from passed in file path returning list of sessions
+vector<TrainingSessionData> ReadTrainingSessionDataFromXML(const string& filePath) {
+    vector<TrainingSessionData> sessions;
+
+    ifstream file(filePath);
+    if (!file.is_open()) {
+        throw runtime_error("Unable to open file: " + filePath);
+    }
+
+    //read file as a string
+    stringstream buffer;
+    buffer << file.rdbuf();
+    string xml = buffer.str();
+    file.close();
+
+    //find start and end sessions blocks of XML
+    size_t sessionsStart = xml.find("<sessions>");
+    size_t sessionsEnd = xml.find("</sessions>");
+    if (sessionsStart == string::npos || sessionsEnd == string::npos) {
+        throw runtime_error("Error: <sessions> block not found in XML.");
+    }
+
+    //note of start and end blocks
+    string sessionsBlock = xml.substr(sessionsStart + 10, sessionsEnd - (sessionsStart + 10));
+
+    
+    size_t sessionPos = 0;
+    while ((sessionPos = sessionsBlock.find("<session>", sessionPos)) != string::npos) {
+        size_t sessionEnd = sessionsBlock.find("</session>", sessionPos);
+        if (sessionEnd == string::npos) {
+            LOG("Error: Malformed <session> block.");
+            break;
+        }
+
+        //extract session data
+        string sessionData = sessionsBlock.substr(sessionPos, sessionEnd - sessionPos + 9);
+
+        //store TrainingSessionData as session
+        TrainingSessionData session;
+
+        //start and end times
+        session.startTime = ParseXMLTag(sessionData, "startTime");
+        session.endTime = ParseXMLTag(sessionData, "endTime");
+
+        //pack data
+        string trainingPackData = ParseXMLTag(sessionData, "trainingPack");
+        session.trainingPackCode = ParseXMLTag(trainingPackData, "code");
+        session.trainingPackName = ParseXMLTag(trainingPackData, "name");
+        session.totalPackShots = stoi(ParseXMLTag(trainingPackData, "totalPackShots"));
+
+        //shot data
+        string shotDataBlock = ParseXMLTag(sessionData, "shotData");
+        size_t shotPos = 0;
+        while ((shotPos = shotDataBlock.find("<shot", shotPos)) != string::npos) {
+            size_t shotEnd = shotDataBlock.find("</shot>", shotPos);
+            if (shotEnd == string::npos) {
+                LOG("Error: Malformed <shot> block.");
+                break;
+            }
+
+            string shotData = shotDataBlock.substr(shotPos, shotEnd - shotPos + 7);
+            vector<AttemptData> attempts;
+
+            size_t attemptPos = 0;
+            while ((attemptPos = shotData.find("<attempt", attemptPos)) != string::npos) {
+                size_t attemptEnd = shotData.find("/>", attemptPos);
+                if (attemptEnd == string::npos) {
+                    LOG("Error: Malformed <attempt> block.");
+                    break;
+                }
+
+                string attemptData = shotData.substr(attemptPos, attemptEnd - attemptPos + 2);
+                AttemptData attempt;
+                size_t scoredPos = attemptData.find("scored=\"true\"");
+                attempt.scored = (scoredPos != string::npos);
+
+                size_t goalSpeedPos = attemptData.find("goalSpeed=\"");
+                if (goalSpeedPos != string::npos) {
+                    goalSpeedPos += 11;
+                    size_t goalSpeedEnd = attemptData.find("\"", goalSpeedPos);
+                    attempt.goalSpeed = stof(attemptData.substr(goalSpeedPos, goalSpeedEnd - goalSpeedPos));
+                }
+
+                size_t boostUsedPos = attemptData.find("boostUsed=\"");
+                if (boostUsedPos != string::npos) {
+                    boostUsedPos += 11;
+                    size_t boostUsedEnd = attemptData.find("\"", boostUsedPos);
+                    attempt.boostUsed = stof(attemptData.substr(boostUsedPos, boostUsedEnd - boostUsedPos));
+                }
+
+                attempts.push_back(attempt);
+                attemptPos = attemptEnd + 2;
+            }
+
+            session.shotData.push_back(attempts);
+            shotPos = shotEnd + 7;
+        }
+
+        sessions.push_back(session);
+        sessionPos = sessionEnd + 9;
+    }
+
+    return sessions;
+}
+//helper function for ReadTrainingSessionDataFromXML for parsing our xml tags easier
+string ParseXMLTag(const string& xml, const string& tag) {
+    //get start and end indexes
+    size_t start = xml.find("<" + tag + ">"); //'<' from <tagname>tagname
+    size_t end = xml.find("</" + tag + ">"); //'<' from </tagname>
+
+    //if couldnt get start or end indexes
+    if (start == string::npos || end == string::npos) {
+        LOG("Error: Tag <" + tag + "> not found.");
+        return "";
+    }
+
+    //from the start point, add the length of the tag and the two angle brackets <>
+    start += tag.length() + 2;
+
+    //in xml from start point, until incremented pointer x times
+    return xml.substr(start, end - start);
+}
+//helper that prepares pack data for displayPackSelector
+vector<pair<string, string>> getTrainingPackNameAndCode(const vector<TrainingSessionData>& sessionCache) {
+    vector<pair<string, string>> trainingPacks;
+    set<string> seenCodes;
+
+    for (const auto& session : sessionCache) {
+        //ensure code doesn't already exist
+        if (seenCodes.find(session.trainingPackCode) == seenCodes.end()) {
+            trainingPacks.emplace_back(session.trainingPackCode, session.trainingPackName);
+            seenCodes.insert(session.trainingPackCode);
+        }
+    }
+
+    return trainingPacks;
+}
+//display dropdown with name and code
+string displayPackSelector(const vector<pair<string, string>>& trainingPacks) {
+    //automatically try to get code and name
+    static string selectedPackCode = trainingPacks.empty() ? "" : trainingPacks[0].first;
+    static string selectedPackName = trainingPacks.empty() ? "" : trainingPacks[0].second;
+    string selectedDisplay = selectedPackName + " (" + selectedPackCode + ")";
+
+    //dropdown
+    ImGui::Text("Select Training Pack:");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(350.0f);
+    if (ImGui::BeginCombo("##TrainingPackDropdown", selectedDisplay.c_str())) {
+        for (const auto& [packCode, packName] : trainingPacks) {
+            //combine here
+            string displayName = packName + " (" + packCode + ")";
+            bool isSelected = (selectedPackCode == packCode);
+
+            if (ImGui::Selectable(displayName.c_str(), isSelected)) {
+                selectedPackCode = packCode;
+                selectedPackName = packName;
+            }
+            if (isSelected) {
+                ImGui::SetItemDefaultFocus(); //set as selected item from dropdown
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    return selectedPackCode;
+}
+
+//unused debugging functions==========================================================================================================
+//displays implot demo
+void displayDemo() {
+    static bool show_demo_window = false;
+    ImGui::Checkbox("Show ImPlot Demo", &show_demo_window);
+    if (show_demo_window) {
+        ImPlot::ShowDemoWindow(&show_demo_window);
+    }
+    ImGui::Separator();
+}
+//debugging function
+void PrintAllCachedSessions() {
+    //loop through every session
+    for (const auto& session : sessionsCache) {
+        //print top-level members
+        LOG("Start Time: " + session.startTime);
+        LOG("End Time: " + session.endTime);
+        LOG("Training Pack Code: " + session.trainingPackCode);
+        LOG("Training Pack Name: " + session.trainingPackName);
+        LOG("Total Pack Shots: " + to_string(session.totalPackShots));
+
+        //print all shotData from attempt vector
+        for (size_t i = 0; i < session.shotData.size(); i++) {
+            //print shotData's shot #
+            LOG("Shot " + to_string(i) + ":");
+
+            //print shotData for shot #
+            for (const auto& attempt : session.shotData[i]) {
+                //shotData includes Attempt (t/f), goal speed, boost used
+                LOG("  Attempt - Scored: " + string(attempt.scored ? "true" : "false") +
+                    ", Goal Speed: " + to_string(attempt.goalSpeed) +
+                    ", Boost Used: " + to_string(attempt.boostUsed));
+            }
+        }
+    }
 }

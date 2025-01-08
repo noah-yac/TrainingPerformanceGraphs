@@ -93,6 +93,7 @@
   <ItemGroup>
     <ClCompile Include="external\implot-0.2\implot.cpp" />
     <ClCompile Include="external\implot-0.2\implot_demo.cpp" />
+    <ClCompile Include="GraphFunctions.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imguivariouscontrols.cpp" />
     <ClCompile Include="imgui\imgui_additions.cpp" />
@@ -115,6 +116,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="external\implot-0.2\implot.h" />
+    <ClInclude Include="GraphFunctions.h" />
+    <ClInclude Include="TrainingPerformanceGraphsGUI.h" />
     <ClInclude Include="imgui\imconfig.h" />
     <ClInclude Include="imgui\imgui.h" />
     <ClInclude Include="imgui\imguivariouscontrols.h" />
