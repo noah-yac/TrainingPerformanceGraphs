@@ -1,4 +1,4 @@
-# TrainingPerformanceGraphs [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+# TrainingPerformanceGraphs [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 **TrainingPerformanceGraphs** is a BakkesMod plugin that automatically tracks the user's performance in all rocket league training packs. The plugin also lets the user graphically see improvements or deteriorations to their performance in **shooting score percentages, boost usage, and goal speed**. 
 
@@ -34,3 +34,9 @@ In a graph's box in the upper left corner, you may hover over legend labels to h
 *Training Session (User XML and Generated Example XML) Data is written to:*
 
     C:\Users\<USERNAME>\AppData\Roaming\bakkesmod\bakkesmod\data
+
+### Contact
+Ideas? Suggestions? Bugs?
+Feel free to create an issue or pull request.
+
+Email: noah.f.yacoub@gmail.com
