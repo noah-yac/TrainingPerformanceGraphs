@@ -7,12 +7,12 @@
 - **Assist you in training:** Focus on one aspect of your performance at a time.
 - **Precise metrics:** Know exactly when you've reached your desired performance level.
 
-
 ## Installation
 **Soon to be published - IGNORE FOR NOW**
 1. Install [BakkesMod](https://www.bakkesmod.com/download.php).
-1. Launch Rocket League
+1. Ensure BakkesMod is open in background.
 1. Install [TrainingPerformanceGraphs](https://bakkesplugins.com/plugins/view/505) plugin.
+1. Launch Rocket League.
 
 **You are now automatically tracking your training session metrics!**
 
