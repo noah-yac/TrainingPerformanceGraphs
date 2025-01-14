@@ -18,16 +18,50 @@ void HandleIndividualShotControls(int totalShots, const string& selectedPack, co
         lastSelectedPack = selectedPack;
     }
 
-    //input field and buttons
-    ImGui::Text("Individual Shot:");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(35.0f); //width for input box
-    ImGui::InputText("##ShotNumber", shotNumberInput, IM_ARRAYSIZE(shotNumberInput));
-    ImGui::SameLine();
-    ImGui::Text("/ %d", totalShots);
+    //spacing
+    ImGui::Separator();
+    ImGui::Dummy(ImVec2(1, 0));
     ImGui::SameLine();
 
-    if (ImGui::Button("+")) {
+    //toggle "Display all shots"
+    if (ImGui::Button(displayAllShots ? "Remove all shots" : "Add all shots", ImVec2(110.0f, 0.0f))) {
+        displayAllShots = !displayAllShots;
+        errorMessage.clear();
+
+        if (displayAllShots) {
+            //LOG("Displaying all shots.");
+            //add all shots to customShotLines
+            for (int shotNumber = 1; shotNumber <= totalShots; ++shotNumber) {
+                string label = "Shot " + to_string(shotNumber);
+                auto it = find_if(customShotLines.begin(), customShotLines.end(),
+                    [&label](const auto& line) { return line.first == label; });
+
+                if (it == customShotLines.end()) {
+                    customShotLines.emplace_back(label, vector<pair<float, float>>());
+                }
+            }
+        }
+        else {
+            //LOG("Hiding all shots.");
+            //remove all shots from customShotLines
+            customShotLines.clear();
+        }
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Add/Remove lines to graph for each available shot number.");
+    }
+
+    //spacing and | vert seperation between toggle all and ind shot buttons
+    ImGui::SameLine();
+    ImGui::Dummy(ImVec2(1, 0));
+    ImGui::SameLine();
+    ImGui::Text("|");
+    ImGui::SameLine();
+    ImGui::Dummy(ImVec2(1, 0));
+    ImGui::SameLine();
+
+    //individual shot
+    if (ImGui::Button("Add shot")) {
         int shotNumber = -1;
         bool validInput = true;
         bool hasData = false;
@@ -70,40 +104,23 @@ void HandleIndividualShotControls(int totalShots, const string& selectedPack, co
             }
         }
     }
-
-    ImGui::SameLine();
-
-    //toggle "Display all shots"
-    if (ImGui::Button(displayAllShots ? "  Hide all shots  " : "Display all shots")) {
-        displayAllShots = !displayAllShots;
-        errorMessage.clear();
-
-        if (displayAllShots) {
-            //LOG("Displaying all shots.");
-            //add all shots to customShotLines
-            for (int shotNumber = 1; shotNumber <= totalShots; ++shotNumber) {
-                string label = "Shot " + to_string(shotNumber);
-                auto it = find_if(customShotLines.begin(), customShotLines.end(),
-                    [&label](const auto& line) { return line.first == label; });
-
-                if (it == customShotLines.end()) {
-                    customShotLines.emplace_back(label, vector<pair<float, float>>());
-                }
-            }
-        }
-        else {
-            //LOG("Hiding all shots.");
-            //remove all shots from customShotLines
-            customShotLines.clear();
-        }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Add line to graph for a specific shot number.");
     }
-
+    ImGui::SameLine();
+    //input field and buttons
+    ImGui::SetNextItemWidth(30.0f); //width for input box
+    ImGui::InputText("##ShotNumber", shotNumberInput, IM_ARRAYSIZE(shotNumberInput));
+    ImGui::SameLine();
+    ImGui::Text("/ %d", totalShots);
+   
     //display error message, if any
     if (!errorMessage.empty()) {
         ImGui::SameLine();
         ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", errorMessage.c_str());
     }
-
+    
+    //ImGui::SameLine();
     ImGui::Separator();
 }
 
@@ -184,12 +201,13 @@ void RenderScoringRateGraph(const vector<TrainingSessionData>& sessions, const s
     }
 
     //determine y-axis range
+    float yMin = -1.0f;
     float yMax = 110.0f;
-    float xMin = 0.1f; //start x-axis slightly before the first session
+    float xMin = 0.001f; //start x-axis slightly before the first session
     float xMax = max(11.0f, static_cast<float>(numSessions + 1));
 
     //set plot limits
-    ImPlot::SetNextPlotLimits(xMin, xMax, 0, yMax, ImGuiCond_Always);
+    ImPlot::SetNextPlotLimits(xMin, xMax, yMin, yMax, ImGuiCond_Always);
 
     if (ImPlot::BeginPlot("Scoring Rate: Average Scoring Rate From Selected Training Pack", "Training Session", "Scoring Rate (%)", ImVec2(-1, 0))) {
         if (numSessions == 1) {
@@ -202,7 +220,7 @@ void RenderScoringRateGraph(const vector<TrainingSessionData>& sessions, const s
             ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
         }
-        ImPlot::PlotLine("All Shots", sessionIndices.data(), scoringRates.data(), numSessions);
+        ImPlot::PlotLine("Average", sessionIndices.data(), scoringRates.data(), numSessions);
         ImPlot::PopStyleVar();
         ImPlot::PopStyleColor();
 
@@ -303,12 +321,13 @@ void RenderBoostUsedGraph(const vector<TrainingSessionData>& sessions, const str
     }
 
     //determine y-axis range
+    float yMin = -3.0f;
     float yMax = 310.0f; //maximum range for boost
-    float xMin = 0.1f; //start x-axis slightly before the first session
+    float xMin = 0.001f; //start x-axis slightly before the first session
     float xMax = max(11.0f, static_cast<float>(numSessions + 1));
 
     //set plot limits
-    ImPlot::SetNextPlotLimits(xMin, xMax, 0, yMax, ImGuiCond_Always);
+    ImPlot::SetNextPlotLimits(xMin, xMax, yMin, yMax, ImGuiCond_Always);
 
     if (ImPlot::BeginPlot("Boost Used: Average Boost Used From Selected Training Pack", "Training Session", "Boost Used", ImVec2(-1, 0))) {
         if (numSessions == 1) {
@@ -321,7 +340,7 @@ void RenderBoostUsedGraph(const vector<TrainingSessionData>& sessions, const str
             ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
         }
-        ImPlot::PlotLine("All Shots", sessionIndices.data(), boostAverages.data(), numSessions);
+        ImPlot::PlotLine("Average", sessionIndices.data(), boostAverages.data(), numSessions);
         ImPlot::PopStyleVar();
         ImPlot::PopStyleColor();
 
@@ -426,12 +445,13 @@ void RenderGoalSpeedGraph(const vector<TrainingSessionData>& sessions, const str
     }
 
     //determine y-axis range
+    float yMin = -1.4f;
     float yMax = 150.0f; //adjusted maximum range for goal speed
-    float xMin = 0.1f; //start x-axis slightly before the first session
+    float xMin = 0.001f; //start x-axis slightly before the first session
     float xMax = max(11.0f, static_cast<float>(numSessions + 1));
 
     //set plot limits
-    ImPlot::SetNextPlotLimits(xMin, xMax, 0, yMax, ImGuiCond_Always);
+    ImPlot::SetNextPlotLimits(xMin, xMax, yMin, yMax, ImGuiCond_Always);
 
     if (ImPlot::BeginPlot("Goal Speed: Average Goal Speed From Selected Training Pack", "Training Session", "Goal Speed (km/h)", ImVec2(-1, 0))) {
         if (numSessions == 1) {
@@ -444,7 +464,7 @@ void RenderGoalSpeedGraph(const vector<TrainingSessionData>& sessions, const str
             ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); //white color
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.0f); //extra bold line
         }
-        ImPlot::PlotLine("All Shots", sessionIndices.data(), goalSpeedAverages.data(), numSessions);
+        ImPlot::PlotLine("Average", sessionIndices.data(), goalSpeedAverages.data(), numSessions);
         ImPlot::PopStyleVar();
         ImPlot::PopStyleColor();
 

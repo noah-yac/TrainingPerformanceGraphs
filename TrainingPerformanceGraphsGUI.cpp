@@ -14,19 +14,25 @@ string TrainingPerformanceGraphs::GetPluginName() { return "TrainingPerformanceG
 //GUI main()
 void TrainingPerformanceGraphs::RenderSettings() {
     //ImGui::TextUnformatted("Training Performance Graphs");
-
     //display implot demo for debugging/testing
     //displayDemo();
 
     //static flag to ensure the data loading function is only called once
     static bool dataLoadedOnce = false;
+    static bool exampleDataGeneratedOnce = false;
 
-    if (!dataLoadedOnce) {
-        string dataFolder = gameWrapper->GetDataFolder().string();
-        
-        //generate test data file
-        GenerateTestXML(dataFolder + "\\test_data.xml");
-        LOG("Test data generated.");
+    if (ImGui::IsWindowAppearing()) {
+        dataLoadedOnce = false;
+    }
+
+    string dataFolder = gameWrapper->GetDataFolder().string();
+    if (!dataLoadedOnce) {       
+        if (!exampleDataGeneratedOnce) {
+            //generate test data file
+            GenerateTestXML(dataFolder + "\\test_data.xml");
+            LOG("Test data generated.");
+            exampleDataGeneratedOnce = true;
+        }
 
         //append user xml data then test xml data to sessionCache
         AddSessionsToCache(dataFolder);
@@ -39,7 +45,7 @@ void TrainingPerformanceGraphs::RenderSettings() {
 
     //Graph 1: Scoring Rate
     RenderScoringRateGraph(sessionsCache, selectedPack);
-
+    
     //Graph 2: Boost Used
     RenderBoostUsedGraph(sessionsCache, selectedPack);
 
@@ -124,7 +130,7 @@ void AddSessionsToCache(string dataFolder) {
     try {
         vector<TrainingSessionData> userSessions = ReadTrainingSessionDataFromXML(dataFolder + "\\training_sessions.xml");
         sessionsCache.insert(sessionsCache.end(), userSessions.begin(), userSessions.end());
-        LOG("User training data loaded successfully.");
+        //LOG("User training data loaded successfully.");
     }
     catch (const exception& e) { LOG("Error loading user training data: " + string(e.what())); }
 
@@ -132,9 +138,11 @@ void AddSessionsToCache(string dataFolder) {
     try {
         vector<TrainingSessionData> testSessions = ReadTrainingSessionDataFromXML(dataFolder + "\\test_data.xml");
         sessionsCache.insert(sessionsCache.end(), testSessions.begin(), testSessions.end());
-        LOG("Test training data loaded successfully.");
+        //LOG("Test training data loaded successfully.");
     }
     catch (const exception& e) { LOG("Error loading test training data: " + string(e.what())); }
+
+    LOG("Session cache (re)loaded.");
 
     isCacheLoaded = true;
     //PrintAllCachedSessions();
@@ -286,8 +294,12 @@ string displayPackSelector(const vector<pair<string, string>>& trainingPacks) {
     string selectedDisplay = selectedPackName + " (" + selectedPackCode + ")";
 
     //dropdown
+    ImGui::Dummy(ImVec2(1, 0));
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
     ImGui::Text("Select Training Pack:");
     ImGui::SameLine();
+
     ImGui::SetNextItemWidth(350.0f);
     if (ImGui::BeginCombo("##TrainingPackDropdown", selectedDisplay.c_str())) {
         for (const auto& [packCode, packName] : trainingPacks) {
